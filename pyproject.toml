@@ -1,0 +1,21 @@
+[project]
+name = "agmod"
+version = "0.1.0"
+description = "Local LLM block manager"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "textual>=0.61",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+agmod = "agmod.tui.app:run"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
