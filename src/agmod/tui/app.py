@@ -8,8 +8,13 @@ import logging
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Container, Horizontal
+from rich.segment import Segment
+from rich.style import Style
+from rich.text import Text
 from textual.widgets import Footer, Header, Tree
+from textual.widgets._tree import TreeNode
+from textual.strip import Strip
 
 from agmod.agents_editor import update_agents_file
 from agmod.block_model import Block, ProjectBlock
@@ -30,15 +35,89 @@ class _NodeRefs:
     info: InfoPanel
 
 
+class StyledTree(Tree):
+    def render_label(self, node: TreeNode, base_style: Style, style: Style) -> Text:
+        return super().render_label(node, base_style, style.without_color)
+
+    def render_line(self, y: int) -> Strip:
+        strip = super().render_line(y)
+        line_index = y + self.scroll_offset.y
+        if line_index == self.cursor_line and self.has_focus:
+            cursor_style = self.get_component_rich_style("tree--cursor", partial=False)
+            if cursor_style.bgcolor is not None:
+                segments = list(
+                    Segment.apply_style(
+                        strip._segments,
+                        post_style=Style(bgcolor=cursor_style.bgcolor),
+                    )
+                )
+                strip = Strip(segments, strip.cell_length)
+        return strip
+
+
 class AgmodApp(App):
     """Main Textual app for agmod."""
 
+    DEFAULT_CSS = """
+    #main {
+        height: 1fr;
+    }
+
+    .panel {
+        width: 1fr;
+        min-width: 28;
+        height: 1fr;
+        border: round $surface-lighten-2;
+        padding: 0 1;
+        border-title-align: left;
+    }
+
+
+    .panel > Tree {
+        height: 1fr;
+    }
+
+    #info {
+        width: 2fr;
+        min-width: 32;
+    }
+
+    Tree > .tree--cursor {
+        background: $surface-darken-1;
+    }
+
+    Tree > .tree--highlight {
+        background: $surface-darken-1;
+    }
+
+    Tree > .tree--highlight-line {
+        background: $surface-darken-1;
+    }
+
+    Tree:focus > .tree--cursor {
+        background: $surface-darken-1;
+    }
+
+    Tree:focus > .tree--highlight {
+        background: $surface-darken-1;
+    }
+
+    Tree:focus > .tree--highlight-line {
+        background: $surface-darken-1;
+    }
+    """
+
     BINDINGS = [
+        Binding("a", "add_block", "Add block"),
         Binding("enter", "add_block", "Add block"),
         Binding("delete", "remove_block", "Remove block"),
         Binding("r", "refresh", "Refresh"),
         Binding("tab", "focus_next", "Switch panel"),
         Binding("q", "quit", "Quit"),
+        Binding("j", "cursor_down", show=False),
+        Binding("k", "cursor_up", show=False),
+        Binding("h", "remove_block", show=False),
+        Binding("l", "add_block", show=False),
     ]
 
     def __init__(
@@ -50,16 +129,21 @@ class AgmodApp(App):
         self.project_root = project_root or Path.cwd()
         self.config_path = config_path
         self._ui: _NodeRefs | None = None
-        self._pending_overwrite: Path | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal():
-            sources_tree = Tree("Sources", id="sources")
-            project_tree = Tree("Project Blocks", id="project")
+        with Horizontal(id="main"):
+            sources_tree = StyledTree("Sources", id="sources")
+            project_tree = StyledTree("Project Blocks", id="project")
             info_panel = InfoPanel(id="info")
-            yield sources_tree
-            yield project_tree
+            sources_panel = Container(id="sources-panel", classes="panel")
+            sources_panel.border_title = "Sources"
+            project_panel = Container(id="project-panel", classes="panel")
+            project_panel.border_title = "Project Blocks"
+            with sources_panel:
+                yield sources_tree
+            with project_panel:
+                yield project_tree
             yield info_panel
         yield Footer()
 
@@ -78,51 +162,90 @@ class AgmodApp(App):
             return
         sources = load_sources(self.config_path)
         blocks = scan_sources(sources)
-        self._populate_sources(self._ui.sources, blocks)
         project_blocks = list_project_blocks(self.project_root)
+        project_names = {block.relative_path.name for block in project_blocks}
+        self._populate_sources(self._ui.sources, blocks, project_names)
         self._populate_project(self._ui.project, project_blocks)
+        self._ensure_cursor(self._ui.sources)
+        self._ensure_cursor(self._ui.project)
         self._update_agents(project_blocks)
 
-    def _populate_sources(self, tree: Tree, blocks: list[Block]) -> None:
+    def _theme_color(self, name: str) -> str | None:
+        colors = self.current_theme.to_color_system()
+        value = getattr(colors, name, None)
+        if value is None:
+            return None
+        return value.hex
+
+    def _text_with_style(self, value: str, style: Style | None) -> Text:
+        if style is None:
+            return Text(value)
+        return Text(value, style=style)
+
+    def _populate_sources(
+        self, tree: Tree, blocks: list[Block], project_names: set[str]
+    ) -> None:
         tree.clear()
         root = tree.root
-        root.label = "Sources"
+        root.label = ""
+        tree.show_root = False
         root.expand()
-        source_nodes: dict[str, Tree.Node] = {}
+        source_names = sorted({block.source for block in blocks})
+        show_sources = len(source_names) > 1
+        source_nodes: dict[str, TreeNode] = {}
+        accent_color = self._theme_color("accent")
+        success_color = self._theme_color("success")
+        accent_style = Style(color=accent_color) if accent_color else None
+        success_style = Style(color=success_color) if success_color else None
 
         for block in blocks:
-            if block.source not in source_nodes:
-                source_nodes[block.source] = root.add(block.source, expand=True)
-            parent = source_nodes[block.source]
+            if show_sources:
+                if block.source not in source_nodes:
+                    source_nodes[block.source] = root.add(
+                        self._text_with_style(block.source, accent_style),
+                        expand=True,
+                    )
+                parent = source_nodes[block.source]
+            else:
+                parent = root
             for part in block.relative_path.parts[:-1]:
                 child = self._find_child(parent, part)
                 if child is None:
-                    child = parent.add(part, expand=True)
+                    child = parent.add(
+                        self._text_with_style(part, accent_style),
+                        expand=True,
+                        allow_expand=True,
+                    )
                 parent = child
-            parent.add(block.relative_path.name, data=block)
+            if block.relative_path.name in project_names:
+                label = self._text_with_style(block.relative_path.name, success_style)
+            else:
+                label = Text(block.relative_path.name)
+            parent.add_leaf(label, data=block)
 
     def _populate_project(self, tree: Tree, blocks: list[ProjectBlock]) -> None:
         tree.clear()
         root = tree.root
-        root.label = "Project Blocks"
+        root.label = ""
+        tree.show_root = False
         root.expand()
         for block in blocks:
-            parent = root
-            for part in block.relative_path.parts[:-1]:
-                child = self._find_child(parent, part)
-                if child is None:
-                    child = parent.add(part, expand=True)
-                parent = child
-            parent.add(block.relative_path.name, data=block)
+            root.add_leaf(Text(block.relative_path.name), data=block)
 
-    def _find_child(self, node: Tree.Node, label: str) -> Tree.Node | None:
+    def _ensure_cursor(self, tree: Tree) -> None:
+        if tree.cursor_node is not None:
+            return
+        if tree.root.children:
+            tree.select_node(tree.root.children[0])
+
+    def _find_child(self, node: TreeNode, label: str) -> TreeNode | None:
         for child in node.children:
             if str(child.label) == label:
                 return child
         return None
 
-    def _walk_nodes(self, node: Tree.Node) -> list[Tree.Node]:
-        nodes = [node]
+    def _walk_nodes(self, node: TreeNode) -> list[TreeNode]:
+        nodes: list[TreeNode] = [node]
         for child in node.children:
             nodes.extend(self._walk_nodes(child))
         return nodes
@@ -135,8 +258,21 @@ class AgmodApp(App):
             self._ui.info.show_block(data)
 
     def action_refresh(self) -> None:
-        self._pending_overwrite = None
         self._refresh_views()
+
+    def action_cursor_down(self) -> None:
+        if self.focused is None:
+            return
+        action = getattr(self.focused, "action_cursor_down", None)
+        if action is not None:
+            action()
+
+    def action_cursor_up(self) -> None:
+        if self.focused is None:
+            return
+        action = getattr(self.focused, "action_cursor_up", None)
+        if action is not None:
+            action()
 
     def action_add_block(self) -> None:
         if self._ui is None:
@@ -148,24 +284,22 @@ class AgmodApp(App):
         if node is None or not isinstance(node.data, Block):
             return
         block = node.data
-        destination = self.project_root / "llm" / block.relative_path
-        if destination.exists() and self._pending_overwrite != destination:
-            self._pending_overwrite = destination
-            self._ui.info.show_message(
-                f"Block exists. Press Enter again to overwrite: {block.relative_path.as_posix()}"
+        destination = self.project_root / "llm" / block.relative_path.name
+        if destination.exists():
+            self.notify(
+                f"Duplicate filename detected: {destination.name}. Skipped.",
+                severity="warning",
             )
             return
         try:
-            copy_block(block, self.project_root, allow_overwrite=destination.exists())
+            copy_block(block, self.project_root, allow_overwrite=False)
         except FileExistsError:
-            self._ui.info.show_message(
-                f"Block exists. Press Enter again to overwrite: {block.relative_path.as_posix()}"
+            self.notify(
+                f"Duplicate filename detected: {destination.name}. Skipped.",
+                severity="warning",
             )
             return
-        self._pending_overwrite = None
-        project_blocks = list_project_blocks(self.project_root)
-        self._populate_project(self._ui.project, project_blocks)
-        self._update_agents(project_blocks)
+        self._refresh_views()
 
     def action_remove_block(self) -> None:
         if self._ui is None:
@@ -181,9 +315,7 @@ class AgmodApp(App):
             remove_project_block(self.project_root, block.relative_path)
         except FileNotFoundError:
             logging.warning("Block not found: %s", block.relative_path)
-        project_blocks = list_project_blocks(self.project_root)
-        self._populate_project(self._ui.project, project_blocks)
-        self._update_agents(project_blocks)
+        self._refresh_views()
 
     def _update_agents(self, project_blocks: list[ProjectBlock]) -> None:
         agents_path = self.project_root / "AGENTS.md"

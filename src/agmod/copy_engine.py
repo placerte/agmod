@@ -40,9 +40,7 @@ def copy_block(block: Block, project_root: Path, allow_overwrite: bool) -> Path:
     """
 
     llm_dir = ensure_project_llm_dir(project_root)
-    destination = llm_dir / block.relative_path
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
+    destination = llm_dir / block.relative_path.name
     if destination.exists() and not allow_overwrite:
         raise FileExistsError(f"Block already exists: {destination}")
 
@@ -74,7 +72,7 @@ def list_project_blocks(project_root: Path) -> list[ProjectBlock]:
 
     llm_dir = ensure_project_llm_dir(project_root)
     blocks: list[ProjectBlock] = []
-    for path in llm_dir.rglob("*.md"):
+    for path in llm_dir.glob("*.md"):
         relative_path = path.relative_to(llm_dir)
         name, description, tags = extract_metadata(path)
         blocks.append(
