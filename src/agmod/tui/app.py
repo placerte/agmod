@@ -67,7 +67,7 @@ class AgmodApp(App):
         width: 1fr;
         min-width: 28;
         height: 1fr;
-        border: round $surface-lighten-2;
+        border: round $accent;
         padding: 0 1;
         border-title-align: left;
     }
@@ -110,14 +110,15 @@ class AgmodApp(App):
     BINDINGS = [
         Binding("a", "add_block", "Add block"),
         Binding("enter", "add_block", "Add block"),
+        Binding("space", "context_action", "Add/Remove", priority=True),
         Binding("delete", "remove_block", "Remove block"),
         Binding("r", "refresh", "Refresh"),
         Binding("tab", "focus_next", "Switch panel"),
         Binding("q", "quit", "Quit"),
         Binding("j", "cursor_down", show=False),
         Binding("k", "cursor_up", show=False),
-        Binding("h", "remove_block", show=False),
-        Binding("l", "add_block", show=False),
+        Binding("h", "focus_sources", show=False, priority=True),
+        Binding("l", "focus_project", show=False, priority=True),
     ]
 
     def __init__(
@@ -321,6 +322,25 @@ class AgmodApp(App):
         agents_path = self.project_root / "AGENTS.md"
         block_paths = [Path("llm") / block.relative_path for block in project_blocks]
         update_agents_file(agents_path, block_paths)
+
+    def action_context_action(self) -> None:
+        if self._ui is None:
+            return
+        if self.focused is self._ui.sources:
+            self.action_add_block()
+            return
+        if self.focused is self._ui.project:
+            self.action_remove_block()
+
+    def action_focus_sources(self) -> None:
+        if self._ui is None:
+            return
+        self._ui.sources.focus()
+
+    def action_focus_project(self) -> None:
+        if self._ui is None:
+            return
+        self._ui.project.focus()
 
     def select_source_block(self, relative_path: Path) -> None:
         """Select a source block node by relative path."""

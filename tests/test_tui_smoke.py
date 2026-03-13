@@ -74,14 +74,14 @@ def test_tui_vim_bindings_add_remove(tmp_path: Path) -> None:
             app._ui.sources.focus()
             await pilot.pause()
             app.select_source_block(Path("tool.md"))
-            await pilot.press("l")
+            await pilot.press("space")
             await pilot.pause()
             assert (project_root / "llm" / "tool.md").exists()
 
-            app._ui.project.focus()
+            await pilot.press("l")
             await pilot.pause()
             app.select_project_block(Path("tool.md"))
-            await pilot.press("h")
+            await pilot.press("space")
             await pilot.pause()
             assert not (project_root / "llm" / "tool.md").exists()
 
