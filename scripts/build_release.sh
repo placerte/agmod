@@ -45,8 +45,7 @@ rm -rf "${DIST_DIR}" "${WORK_DIR}"
 
 uv run pyinstaller "${SPEC_FILE}" \
     --distpath "${DIST_DIR}" \
-    --workpath "${WORK_DIR}" \
-    --specpath "${WORK_DIR}"
+    --workpath "${WORK_DIR}"
 
 mkdir -p "${RELEASE_DIR}"
 tar -C "${DIST_DIR}" -czf "${RELEASE_DIR}/agmod-${OS}-${ARCH}.tar.gz" agmod
