@@ -138,11 +138,12 @@ that may be relevant when working in this repository.
 
 - llm/agent_executor_instructions_v_1.md
 - llm/code_style.md
+- llm/crawl4ai_toolbox.md
 - llm/gotchas.md
-- llm/kb_llm__personas__user-persona.md
 - llm/progress_tracker.md
 - llm/python_toolbox.md
 - llm/sessions_logger.md
+- llm/textual_resources.md
 - llm/textual_toolbox.md
 - llm/user-persona.md
 

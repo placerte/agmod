@@ -26,6 +26,7 @@ from agmod.copy_engine import (
 )
 from agmod.scanner import scan_sources
 from agmod.tui.panels import InfoPanel
+from agmod.tui.themes import register_everforest_themes
 
 
 @dataclass
@@ -117,8 +118,8 @@ class AgmodApp(App):
         Binding("q", "quit", "Quit"),
         Binding("j", "cursor_down", show=False),
         Binding("k", "cursor_up", show=False),
-        Binding("h", "focus_sources", show=False, priority=True),
-        Binding("l", "focus_project", show=False, priority=True),
+        Binding("h", "remove_block", show=False, priority=True),
+        Binding("l", "add_block", show=False, priority=True),
     ]
 
     def __init__(
@@ -130,6 +131,7 @@ class AgmodApp(App):
         self.project_root = project_root or Path.cwd()
         self.config_path = config_path
         self._ui: _NodeRefs | None = None
+        self._project_names: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -149,6 +151,8 @@ class AgmodApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        register_everforest_themes(self)
+        self.theme = "everforest-dark-hard"
         sources_tree = self.query_one("#sources", Tree)
         project_tree = self.query_one("#project", Tree)
         info_panel = self.query_one("#info", InfoPanel)
@@ -164,8 +168,8 @@ class AgmodApp(App):
         sources = load_sources(self.config_path)
         blocks = scan_sources(sources)
         project_blocks = list_project_blocks(self.project_root)
-        project_names = {block.relative_path.name for block in project_blocks}
-        self._populate_sources(self._ui.sources, blocks, project_names)
+        self._project_names = {block.relative_path.name for block in project_blocks}
+        self._populate_sources(self._ui.sources, blocks, self._project_names)
         self._populate_project(self._ui.project, project_blocks)
         self._ensure_cursor(self._ui.sources)
         self._ensure_cursor(self._ui.project)
@@ -251,6 +255,32 @@ class AgmodApp(App):
             nodes.extend(self._walk_nodes(child))
         return nodes
 
+    def _is_project_block_present(self, block_name: str) -> bool:
+        return block_name in self._project_names
+
+    def _add_source_block(self, block: Block) -> None:
+        if self._is_project_block_present(block.relative_path.name):
+            return
+        destination = self.project_root / "llm" / block.relative_path.name
+        try:
+            copy_block(block, self.project_root, allow_overwrite=False)
+        except FileExistsError:
+            self.notify(
+                f"Duplicate filename detected: {destination.name}. Skipped.",
+                severity="warning",
+            )
+            return
+        self._refresh_views()
+
+    def _remove_project_block(self, block_name: str) -> None:
+        if not self._is_project_block_present(block_name):
+            return
+        try:
+            remove_project_block(self.project_root, Path(block_name))
+        except FileNotFoundError:
+            logging.warning("Block not found: %s", block_name)
+        self._refresh_views()
+
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         if self._ui is None:
             return
@@ -284,39 +314,23 @@ class AgmodApp(App):
         node = self._ui.sources.cursor_node
         if node is None or not isinstance(node.data, Block):
             return
-        block = node.data
-        destination = self.project_root / "llm" / block.relative_path.name
-        if destination.exists():
-            self.notify(
-                f"Duplicate filename detected: {destination.name}. Skipped.",
-                severity="warning",
-            )
-            return
-        try:
-            copy_block(block, self.project_root, allow_overwrite=False)
-        except FileExistsError:
-            self.notify(
-                f"Duplicate filename detected: {destination.name}. Skipped.",
-                severity="warning",
-            )
-            return
-        self._refresh_views()
+        self._add_source_block(node.data)
 
     def action_remove_block(self) -> None:
         if self._ui is None:
             return
         focused = self.focused
-        if focused is not self._ui.project:
+        if focused is self._ui.sources:
+            node = self._ui.sources.cursor_node
+            if node is None or not isinstance(node.data, Block):
+                return
+            self._remove_project_block(node.data.relative_path.name)
             return
-        node = self._ui.project.cursor_node
-        if node is None or not isinstance(node.data, ProjectBlock):
-            return
-        block = node.data
-        try:
-            remove_project_block(self.project_root, block.relative_path)
-        except FileNotFoundError:
-            logging.warning("Block not found: %s", block.relative_path)
-        self._refresh_views()
+        if focused is self._ui.project:
+            node = self._ui.project.cursor_node
+            if node is None or not isinstance(node.data, ProjectBlock):
+                return
+            self._remove_project_block(node.data.relative_path.name)
 
     def _update_agents(self, project_blocks: list[ProjectBlock]) -> None:
         agents_path = self.project_root / "AGENTS.md"
@@ -327,10 +341,20 @@ class AgmodApp(App):
         if self._ui is None:
             return
         if self.focused is self._ui.sources:
-            self.action_add_block()
+            node = self._ui.sources.cursor_node
+            if node is None or not isinstance(node.data, Block):
+                return
+            block_name = node.data.relative_path.name
+            if self._is_project_block_present(block_name):
+                self._remove_project_block(block_name)
+            else:
+                self._add_source_block(node.data)
             return
         if self.focused is self._ui.project:
-            self.action_remove_block()
+            node = self._ui.project.cursor_node
+            if node is None or not isinstance(node.data, ProjectBlock):
+                return
+            self._remove_project_block(node.data.relative_path.name)
 
     def action_focus_sources(self) -> None:
         if self._ui is None:
