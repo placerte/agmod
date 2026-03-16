@@ -1,6 +1,6 @@
 [project]
 name = "agmod"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local LLM block manager"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -23,4 +23,7 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+]
+build = [
+    "pyinstaller>=6.6",
 ]
