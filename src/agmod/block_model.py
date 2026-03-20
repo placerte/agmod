@@ -7,6 +7,33 @@ from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
+class BlockMetadata:
+    """Represents canonical metadata extracted from frontmatter.
+
+    Args:
+        block_id: Canonical block identifier.
+        name: Canonical display name.
+        block_type: Block type (e.g., spec, impl, tool).
+        scope: Scope classification.
+        version: Version string.
+        status: Status string.
+        revised: Revision string or date.
+        summary: Short summary of the block.
+        tags: Canonical tags.
+    """
+
+    block_id: str | None
+    name: str | None
+    block_type: str | None
+    scope: str | None
+    version: str | None
+    status: str | None
+    revised: str | None
+    summary: str | None
+    tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Block:
     """Represents a block discovered in a source directory.
 

@@ -286,6 +286,7 @@ class AgmodApp(App):
             return
         data = event.node.data
         if isinstance(data, Block):
+            # [I-260320-4]
             self._ui.info.show_block(data)
 
     def action_refresh(self) -> None:

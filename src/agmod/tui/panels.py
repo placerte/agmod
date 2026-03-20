@@ -2,32 +2,27 @@
 
 from __future__ import annotations
 
-from textual.widgets import Static
+from textual.widgets import Markdown
 
 from agmod.block_model import Block
+from agmod.metadata_renderer import render_block
 
 
-class InfoPanel(Static):
+class InfoPanel(Markdown):
     """Panel that renders block metadata and preview."""
 
     def show_block(self, block: Block | None) -> None:
+        # [S-260320-5]
+        # [I-260320-4]
         if block is None:
             self.update("No block selected.")
+            self.scroll_to(0, 0, animate=False)
             return
 
-        description = block.description or "(no description)"
-        tags = ", ".join(block.tags) if block.tags else "(none)"
-        preview = block.preview(max_lines=20)
-        content = (
-            f"Name: {block.name}\n"
-            f"Source: {block.source}\n"
-            f"Path: {block.relative_path.as_posix()}\n"
-            f"Description: {description}\n"
-            f"Tags: {tags}\n\n"
-            "Preview:\n"
-            f"{preview}"
-        )
+        content = render_block(block)
         self.update(content)
+        self.scroll_to(0, 0, animate=False)
 
     def show_message(self, message: str) -> None:
         self.update(message)
+        self.scroll_to(0, 0, animate=False)
