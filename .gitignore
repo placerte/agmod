@@ -5,3 +5,6 @@
 # build artifacts
 build/
 dist/
+
+# dev tools
+*-dump-*
