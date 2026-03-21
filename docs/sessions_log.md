@@ -1,6 +1,9 @@
 # Sessions Log
 
 ## 2026-03-20
+- Completed: removed crawl4ai skill assets/tests, fixed color demo test imports, refreshed TUI layout snapshot, and bumped version to 0.1.3.
+- Tests: `uv run pytest` passed (28 tests).
+- Release: published PyInstaller tarball release v0.1.3.
 - Completed: added canonical markdown viewer rendering modes, frontmatter parsing, and updated TUI to use a single Markdown panel with scroll reset.
 - Added: renderer tests and progress tracker entries for S/I/T/DoD requirements.
 - Tests: `uv run pytest` failed during collection (missing `crawl4ai` and `color_demo_tui_app` modules).
