@@ -24,6 +24,7 @@ def test_canonical_block_rendering(tmp_path: Path) -> None:
         """---
 id: S-1
 name: Canonical Block
+type: spec
 scope: core
 version: 1.0
 status: draft

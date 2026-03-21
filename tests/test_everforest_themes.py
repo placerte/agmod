@@ -4,13 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import sys
-from pathlib import Path
-
-# Ensure project root is on sys.path for color_demo_tui_app import.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from agmod.tui.themes import (
     EVERFOREST_DARK_HARD,
@@ -22,7 +15,7 @@ from agmod.tui.themes import (
     EVERFOREST_THEMES,
     register_everforest_themes,
 )
-from color_demo_tui_app import ColorDemoApp
+from agmod.color_demo_tui_app import ColorDemoApp
 
 
 def test_all_six_variants_defined() -> None:

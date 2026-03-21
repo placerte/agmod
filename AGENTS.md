@@ -138,7 +138,6 @@ that may be relevant when working in this repository.
 
 - llm/agent_executor_instructions_v_1.md
 - llm/code_style.md
-- llm/crawl4ai_toolbox.md
 - llm/gotchas.md
 - llm/progress_tracker.md
 - llm/python_toolbox.md

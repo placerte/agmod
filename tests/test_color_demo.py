@@ -7,15 +7,7 @@ and that theme cycling actually changes them.
 from __future__ import annotations
 
 import asyncio
-import sys
-from pathlib import Path
-
-# Ensure project root is on sys.path so we can import the standalone script.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-from color_demo_tui_app import ColorDemoApp
+from agmod.color_demo_tui_app import ColorDemoApp
 
 
 def test_swatches_render_with_differentiated_colors() -> None:
