@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import logging
 
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
@@ -24,6 +25,14 @@ from agmod.copy_engine import (
     list_project_blocks,
     remove_project_block,
 )
+from agmod.presets import (
+    PresetError,
+    block_identity,
+    install_preset,
+    installed_block_ids,
+    parse_preset,
+    preset_is_installed,
+)
 from agmod.scanner import scan_sources
 from agmod.tui.panels import InfoPanel
 from agmod.tui.themes import register_everforest_themes
@@ -37,19 +46,44 @@ class _NodeRefs:
 
 
 class StyledTree(Tree):
+    BINDINGS = [
+        *Tree.BINDINGS,
+        Binding("g", "vim_top", show=False),
+        Binding("G", "scroll_end", show=False),
+    ]
+
+    _awaiting_second_g = False
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key != "g":
+            self._awaiting_second_g = False
+
+    def action_vim_top(self) -> None:
+        """Move to the first visible node after a consecutive ``gg`` chord."""
+
+        # [S-260803-4] [I-260803-4] A non-g key cancels the pending chord.
+        if self._awaiting_second_g:
+            self._awaiting_second_g = False
+            self.action_scroll_home()
+            return
+        self._awaiting_second_g = True
+
     def render_label(self, node: TreeNode, base_style: Style, style: Style) -> Text:
         return super().render_label(node, base_style, style.without_color)
 
     def render_line(self, y: int) -> Strip:
         strip = super().render_line(y)
         line_index = y + self.scroll_offset.y
-        if line_index == self.cursor_line and self.has_focus:
+        if line_index == self.cursor_line:
             cursor_style = self.get_component_rich_style("tree--cursor", partial=False)
-            if cursor_style.bgcolor is not None:
+            if cursor_style.bgcolor is not None or cursor_style.color is not None:
                 segments = list(
                     Segment.apply_style(
                         strip._segments,
-                        post_style=Style(bgcolor=cursor_style.bgcolor),
+                        post_style=Style(
+                            color=cursor_style.color,
+                            bgcolor=cursor_style.bgcolor,
+                        ),
                     )
                 )
                 strip = Strip(segments, strip.cell_length)
@@ -84,27 +118,33 @@ class AgmodApp(App):
     }
 
     Tree > .tree--cursor {
-        background: $surface-darken-1;
+        background: $panel;
+        color: $foreground;
     }
 
     Tree > .tree--highlight {
-        background: $surface-darken-1;
+        background: $panel;
+        color: $foreground;
     }
 
     Tree > .tree--highlight-line {
-        background: $surface-darken-1;
+        background: $panel;
+        color: $foreground;
     }
 
     Tree:focus > .tree--cursor {
-        background: $surface-darken-1;
+        background: $panel-lighten-1;
+        color: $foreground;
     }
 
     Tree:focus > .tree--highlight {
-        background: $surface-darken-1;
+        background: $panel-lighten-1;
+        color: $foreground;
     }
 
     Tree:focus > .tree--highlight-line {
-        background: $surface-darken-1;
+        background: $panel-lighten-1;
+        color: $foreground;
     }
     """
 
@@ -132,6 +172,9 @@ class AgmodApp(App):
         self.config_path = config_path
         self._ui: _NodeRefs | None = None
         self._project_names: set[str] = set()
+        self._catalog_blocks: list[Block] = []
+        self._project_blocks: list[ProjectBlock] = []
+        self._project_ids: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -168,8 +211,11 @@ class AgmodApp(App):
         sources = load_sources(self.config_path)
         blocks = scan_sources(sources)
         project_blocks = list_project_blocks(self.project_root)
+        self._catalog_blocks = blocks
+        self._project_blocks = project_blocks
         self._project_names = {block.relative_path.name for block in project_blocks}
-        self._populate_sources(self._ui.sources, blocks, self._project_names)
+        self._project_ids = installed_block_ids(project_blocks)
+        self._populate_sources(self._ui.sources, blocks)
         self._populate_project(self._ui.project, project_blocks)
         self._ensure_cursor(self._ui.sources)
         self._ensure_cursor(self._ui.project)
@@ -187,9 +233,7 @@ class AgmodApp(App):
             return Text(value)
         return Text(value, style=style)
 
-    def _populate_sources(
-        self, tree: Tree, blocks: list[Block], project_names: set[str]
-    ) -> None:
+    def _populate_sources(self, tree: Tree, blocks: list[Block]) -> None:
         tree.clear()
         root = tree.root
         root.label = ""
@@ -222,7 +266,7 @@ class AgmodApp(App):
                         allow_expand=True,
                     )
                 parent = child
-            if block.relative_path.name in project_names:
+            if self._is_source_block_present(block):
                 label = self._text_with_style(block.relative_path.name, success_style)
             else:
                 label = Text(block.relative_path.name)
@@ -241,7 +285,7 @@ class AgmodApp(App):
         if tree.cursor_node is not None:
             return
         if tree.root.children:
-            tree.select_node(tree.root.children[0])
+            tree.move_cursor(tree.root.children[0])
 
     def _find_child(self, node: TreeNode, label: str) -> TreeNode | None:
         for child in node.children:
@@ -249,17 +293,43 @@ class AgmodApp(App):
                 return child
         return None
 
-    def _walk_nodes(self, node: TreeNode) -> list[TreeNode]:
-        nodes: list[TreeNode] = [node]
-        for child in node.children:
-            nodes.extend(self._walk_nodes(child))
-        return nodes
-
     def _is_project_block_present(self, block_name: str) -> bool:
         return block_name in self._project_names
 
+    def _is_source_block_present(self, block: Block) -> bool:
+        try:
+            preset = parse_preset(block)
+            if preset is not None:
+                return preset_is_installed(
+                    block,
+                    self._catalog_blocks,
+                    self._project_blocks,
+                )
+        except PresetError:
+            return False
+
+        block_id, _ = block_identity(block)
+        if block_id is not None:
+            return block_id in self._project_ids
+        return self._is_project_block_present(block.relative_path.name)
+
     def _add_source_block(self, block: Block) -> None:
-        if self._is_project_block_present(block.relative_path.name):
+        try:
+            preset = parse_preset(block)
+            if preset is not None:
+                created = install_preset(
+                    block,
+                    self._catalog_blocks,
+                    self.project_root,
+                )
+                self.notify(f"Installed {preset.block_id}: {len(created)} new file(s).")
+                self._refresh_views()
+                return
+        except PresetError as exc:
+            self.notify(str(exc), severity="error")
+            return
+
+        if self._is_source_block_present(block):
             return
         destination = self.project_root / "llm" / block.relative_path.name
         try:
@@ -271,6 +341,16 @@ class AgmodApp(App):
             )
             return
         self._refresh_views()
+
+    def _remove_source_block(self, block: Block) -> None:
+        block_id, _ = block_identity(block)
+        if block_id is not None:
+            for project_block in self._project_blocks:
+                project_id, _ = block_identity(project_block)
+                if project_id == block_id:
+                    self._remove_project_block(project_block.relative_path.name)
+                    return
+        self._remove_project_block(block.relative_path.name)
 
     def _remove_project_block(self, block_name: str) -> None:
         if not self._is_project_block_present(block_name):
@@ -325,7 +405,7 @@ class AgmodApp(App):
             node = self._ui.sources.cursor_node
             if node is None or not isinstance(node.data, Block):
                 return
-            self._remove_project_block(node.data.relative_path.name)
+            self._remove_source_block(node.data)
             return
         if focused is self._ui.project:
             node = self._ui.project.cursor_node
@@ -345,9 +425,8 @@ class AgmodApp(App):
             node = self._ui.sources.cursor_node
             if node is None or not isinstance(node.data, Block):
                 return
-            block_name = node.data.relative_path.name
-            if self._is_project_block_present(block_name):
-                self._remove_project_block(block_name)
+            if self._is_source_block_present(node.data):
+                self._remove_source_block(node.data)
             else:
                 self._add_source_block(node.data)
             return
@@ -372,12 +451,13 @@ class AgmodApp(App):
 
         if self._ui is None:
             return
-        for node in self._walk_nodes(self._ui.sources.root):
+        for line_number, tree_line in enumerate(self._ui.sources._tree_lines):
+            node = tree_line.node
             if (
                 isinstance(node.data, Block)
                 and node.data.relative_path == relative_path
             ):
-                self._ui.sources.select_node(node)
+                self._ui.sources.move_cursor_to_line(line_number)
                 return
 
     def select_project_block(self, relative_path: Path) -> None:
@@ -385,12 +465,13 @@ class AgmodApp(App):
 
         if self._ui is None:
             return
-        for node in self._walk_nodes(self._ui.project.root):
+        for line_number, tree_line in enumerate(self._ui.project._tree_lines):
+            node = tree_line.node
             if (
                 isinstance(node.data, ProjectBlock)
                 and node.data.relative_path == relative_path
             ):
-                self._ui.project.select_node(node)
+                self._ui.project.move_cursor_to_line(line_number)
                 return
 
 

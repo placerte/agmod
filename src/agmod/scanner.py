@@ -8,7 +8,6 @@ import re
 
 from agmod.block_model import Block, BlockMetadata
 
-
 _FRONTMATTER_RE = re.compile(r"^---\s*$")
 
 

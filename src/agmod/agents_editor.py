@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 MANAGED_START = "<!-- agmod:start -->"
 MANAGED_END = "<!-- agmod:end -->"
 

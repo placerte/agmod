@@ -6,9 +6,15 @@ from pathlib import Path
 import logging
 import tomllib
 
-
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / "agmod"
 DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_DIR / "config.toml"
+DEFAULT_CONFIG_TEXT = """[sources]
+kb_llm = "~/llm-blocks/blocks/"
+
+# Additional source examples:
+# personal = "/home/you/llm"
+# workflows = "/home/you/workflows"
+"""
 
 
 def ensure_config_file(config_path: Path | None = None) -> Path:
@@ -25,7 +31,8 @@ def ensure_config_file(config_path: Path | None = None) -> Path:
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not resolved_path.exists():
-        resolved_path.write_text("[sources]\n", encoding="utf-8")
+        # [S-260803-1] [I-260803-1] Existing configuration is never overwritten.
+        resolved_path.write_text(DEFAULT_CONFIG_TEXT, encoding="utf-8")
 
     return resolved_path
 

@@ -13,7 +13,6 @@ from textual.widgets import Footer, Header, Static
 
 from agmod.tui.themes import register_everforest_themes
 
-
 # ---------------------------------------------------------------------------
 # Colour groups to display
 # ---------------------------------------------------------------------------

@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import re
 
+import pytest
+
 from agmod.tui.themes import (
     EVERFOREST_DARK_HARD,
     EVERFOREST_DARK_MEDIUM,
@@ -49,12 +51,12 @@ def test_distinct_backgrounds_across_contrasts() -> None:
     dark_bgs = {t.name: t.background for t in EVERFOREST_THEMES if t.dark}
     light_bgs = {t.name: t.background for t in EVERFOREST_THEMES if not t.dark}
 
-    assert len(set(dark_bgs.values())) == 3, (
-        f"Expected 3 distinct dark backgrounds, got: {dark_bgs}"
-    )
-    assert len(set(light_bgs.values())) == 3, (
-        f"Expected 3 distinct light backgrounds, got: {light_bgs}"
-    )
+    assert (
+        len(set(dark_bgs.values())) == 3
+    ), f"Expected 3 distinct dark backgrounds, got: {dark_bgs}"
+    assert (
+        len(set(light_bgs.values())) == 3
+    ), f"Expected 3 distinct light backgrounds, got: {light_bgs}"
 
 
 def test_shade_overrides_present() -> None:
@@ -76,9 +78,9 @@ def test_shade_overrides_present() -> None:
     ]
     for theme in EVERFOREST_THEMES:
         for key in required_keys:
-            assert key in theme.variables, (
-                f"{theme.name} missing variable override: {key}"
-            )
+            assert (
+                key in theme.variables
+            ), f"{theme.name} missing variable override: {key}"
 
 
 def test_shade_overrides_are_distinct_from_base() -> None:
@@ -124,8 +126,11 @@ def test_switch_to_everforest_dark_hard() -> None:
     asyncio.run(run())
 
 
-def test_everforest_snapshot_has_palette_colors() -> None:
+def test_everforest_snapshot_has_palette_colors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Snapshot of everforest-dark-hard should contain its signature colours."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
     app = ColorDemoApp()
 
     async def run() -> None:
@@ -149,15 +154,16 @@ def test_everforest_snapshot_has_palette_colors() -> None:
                 )
 
             # Should have many distinct colors from the shade overrides
-            assert len(hex_colors) >= 15, (
-                f"Expected at least 15 distinct colours, got {len(hex_colors)}"
-            )
+            assert (
+                len(hex_colors) >= 15
+            ), f"Expected at least 15 distinct colours, got {len(hex_colors)}"
 
     asyncio.run(run())
 
 
-def test_everforest_light_hard_snapshot() -> None:
+def test_everforest_light_hard_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
     """Snapshot of everforest-light-hard should contain light palette backgrounds."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
     app = ColorDemoApp()
 
     async def run() -> None:

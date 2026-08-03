@@ -19,13 +19,19 @@ The installer downloads the latest release asset and installs `agmod` to
 Quick start
 -----------
 
-1) Create a config file at `~/.config/agmod/config.toml`:
+1) The installer creates `~/.config/agmod/config.toml` if it is missing:
 
 ```toml
 [sources]
-personal = "/home/you/llm"
-workflows = "/home/you/workflows"
+kb_llm = "~/llm-blocks/blocks/"
+
+# Additional source examples:
+# personal = "/home/you/llm"
+# workflows = "/home/you/workflows"
 ```
+
+Existing configuration is never overwritten. Edit the generated file if your
+block libraries live elsewhere.
 
 2) Run the app from your project root:
 
@@ -34,6 +40,17 @@ agmod
 ```
 
 Blocks you add are copied into `./llm/` and `AGENTS.md` is updated automatically.
+Preset blocks install their declared dependencies in order. Removing a preset
+removes only the preset definition; shared dependency blocks remain available.
+
+Update an installed release with:
+
+```bash
+sudo agmod --update
+```
+
+`sudo` is only required when the installation directory is not writable by your
+user, such as the default `/usr/local/bin`.
 
 Keybindings
 -----------
@@ -44,6 +61,8 @@ Keybindings
 - `enter` add selected source block
 - `delete` remove selected project block
 - `tab` switch panels
+- `gg` move to the top of the focused tree
+- `G` move to the bottom of the focused tree
 - `r` refresh
 - `q` quit
 

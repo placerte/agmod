@@ -1,7 +1,6 @@
-"""Module entry point for `python -m agmod`."""
+"""Module entry point for ``python -m agmod``."""
 
-from agmod.tui.app import run
-
+from agmod.cli import main
 
 if __name__ == "__main__":
-    run()
+    raise SystemExit(main())

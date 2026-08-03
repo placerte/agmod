@@ -136,10 +136,14 @@ that may be relevant when working in this repository.
 
 <!-- agmod:start -->
 
-- llm/agent_executor_instructions_v_1.md
-- llm/code_style.md
+- llm/decision_log.md
+- llm/general_executor_instructions_v1.md
+- llm/general_project_starter_v1.md
 - llm/gotchas.md
 - llm/progress_tracker.md
+- llm/project_handoff_standard_v1.md
+- llm/project_intake_v1.md
+- llm/project_operating_model_v1.md
 - llm/python_toolbox.md
 - llm/sessions_logger.md
 - llm/textual_resources.md

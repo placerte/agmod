@@ -59,9 +59,9 @@ def test_theme_cycling_changes_subtitle() -> None:
             await pilot.pause()
 
             assert app.theme != initial_theme, "Theme should have changed"
-            assert app.sub_title != initial_subtitle, (
-                "Subtitle should reflect new theme"
-            )
+            assert (
+                app.sub_title != initial_subtitle
+            ), "Subtitle should reflect new theme"
             assert app.sub_title == app.theme, "Subtitle should match theme name"
 
     asyncio.run(run())

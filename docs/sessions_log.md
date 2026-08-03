@@ -1,5 +1,14 @@
 # Sessions Log
 
+## 2026-08-03
+- Completed: default config installation, production selection option 3,
+  canonical preset installation, Vim `gg`/`G` navigation, and `agmod --update`.
+- Manual checks: selection styling, presets, both Vim bindings, and a privileged
+  end-to-end update into `/usr/local/bin` succeeded.
+- Tests: `uv run pytest` passed (48 tests); package and release builds succeeded.
+- Release: prepared v0.2.0 with changelog, current README, and GitHub issue
+  evidence.
+
 ## 2026-03-20
 - Completed: removed crawl4ai skill assets/tests, fixed color demo test imports, refreshed TUI layout snapshot, and bumped version to 0.1.3.
 - Tests: `uv run pytest` passed (28 tests).
